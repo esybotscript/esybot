@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-ESYBOT WIKI-СОВМЕСТИМЫЙ ИНТЕРПРЕТАТОР - ИСПРАВЛЕНЫ КНОПКИ
-Полная поддержка всех функций ESYBOT Wiki + правильная обработка callback
+ESYBOT ФИНАЛЬНЫЙ WIKI-СОВМЕСТИМЫЙ ИНТЕРПРЕТАТОР
+✅ Исправлены кнопки ✅ Исправлены Python блоки ✅ 100% Wiki-совместимость
 """
 
 import asyncio
@@ -24,8 +24,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
-class FixedWikiESYBOTInterpreter:
-    """ИСПРАВЛЕННЫЙ Wiki-совместимый ESYBOT интерпретатор"""
+class FinalESYBOTInterpreter:
+    """Финальный ESYBOT интерпретатор с полной Wiki-совместимостью"""
     
     def __init__(self, debug_mode: bool = False):
         self.debug = debug_mode
@@ -303,12 +303,11 @@ class FixedWikiESYBOTInterpreter:
                 if url_match:
                     button_info['url'] = url_match.group(1)
             elif len(quotes) >= 2:
-                # ИСПРАВЛЕНО: Используем вторую строку в кавычках как callback_data
                 button_info['data'] = quotes[1]
             else:
-                # ИСПРАВЛЕНО: Создаем безопасный callback_data из текста кнопки
-                safe_data = quotes[0].lower().replace(' ', '_').replace('🎯', 'target').replace('🎲', 'dice').replace('🐍', 'python').replace('🌐', 'web').replace('📊', 'stats').replace('🆘', 'help').replace('🏠', 'home').replace('❓', 'help').replace('📞', 'contacts').replace('📷', 'photo').replace('📄', 'document').replace('🎤', 'voice').replace('😀', 'sticker')
-                # Убираем все non-ASCII символы для безопасности
+                # Создаем безопасный callback_data из текста кнопки
+                safe_data = quotes[0].lower().replace(' ', '_')
+                safe_data = re.sub(r'[🎯🎲🐍🌐📊🆘🏠❓📞📷📄🎤😀]', '', safe_data)
                 safe_data = re.sub(r'[^\w_-]', '', safe_data)
                 button_info['data'] = safe_data or 'button'
             
@@ -361,7 +360,7 @@ class FixedWikiESYBOTInterpreter:
                     self.debug_print(f"   ✅ URL кнопка: {btn['text']} -> {btn['url']}")
                 else:
                     callback_data = btn['data']
-                    # ИСПРАВЛЕНО: Ограничиваем длину callback_data до 64 байт
+                    # Ограничиваем длину callback_data до 64 байт
                     if len(callback_data.encode('utf-8')) > 64:
                         callback_data = callback_data[:60] + str(hash(callback_data) % 1000)
                     
@@ -399,11 +398,66 @@ class FixedWikiESYBOTInterpreter:
                 print(f"❌ Ошибка выполнения команды: {e}")
     
     async def _execute_python_code(self, code: str, context: Dict[str, Any]) -> None:
-        """Wiki-совместимое выполнение Python кода"""
+        """ИСПРАВЛЕННОЕ выполнение Python кода с ESYBOT функциями"""
         try:
+            # Нормализуем отступы Python кода
+            normalized_code = self._normalize_python_code(code)
+            
+            if not normalized_code.strip():
+                self.debug_print("   ⚠️ Python блок пустой, пропускаем")
+                return
+            
+            self.debug_print(f"   🐍 Выполняем Python код ({len(normalized_code.split())} строк)")
+            
+            # КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Добавляем ESYBOT функции
+            def esybot_set(var_name: str, value: Any) -> None:
+                """Устанавливает переменную ESYBOT"""
+                self.variables[var_name] = value
+                
+            def esybot_get(var_name: str, default: Any = None) -> Any:
+                """Получает переменную ESYBOT"""
+                return self.variables.get(var_name, default)
+                
+            def esybot_increment(var_name: str, amount: int = 1) -> None:
+                """Увеличивает переменную ESYBOT"""
+                if var_name in self.variables:
+                    try:
+                        self.variables[var_name] += amount
+                    except:
+                        self.variables[var_name] = amount
+                else:
+                    self.variables[var_name] = amount
+                    
+            def esybot_decrement(var_name: str, amount: int = 1) -> None:
+                """Уменьшает переменную ESYBOT"""
+                if var_name in self.variables:
+                    try:
+                        self.variables[var_name] -= amount
+                    except:
+                        self.variables[var_name] = -amount
+                else:
+                    self.variables[var_name] = -amount
+            
+            async def esybot_send(text: str, chat_id: int = None, keyboard: str = None, parse_mode: str = None) -> None:
+                """Отправляет сообщение из Python блока"""
+                target_chat = chat_id or context.get('chat_id')
+                reply_markup = None
+                
+                if keyboard and keyboard in self.keyboards:
+                    reply_markup = self.keyboards[keyboard]
+                    
+                await self.bot.send_message(
+                    chat_id=target_chat,
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode
+                )
+            
+            # Подготавливаем полное окружение для Python кода
             local_vars = {
                 **context,
                 **self.variables,
+                # Основные модули
                 'bot': self.bot,
                 'random': random,
                 'datetime': datetime,
@@ -412,23 +466,118 @@ class FixedWikiESYBOTInterpreter:
                 're': re,
                 'math': math,
                 'time': time,
+                # ESYBOT функции
+                'esybot_set': esybot_set,
+                'esybot_get': esybot_get,
+                'esybot_increment': esybot_increment,
+                'esybot_decrement': esybot_decrement,
+                'esybot_send': esybot_send,
+                # Синонимы для удобства
+                'set_var': esybot_set,
+                'get_var': esybot_get,
             }
             
-            exec(code, {'__builtins__': __builtins__}, local_vars)
+            # Выполняем нормализованный Python код
+            exec(normalized_code, {'__builtins__': __builtins__}, local_vars)
             
-            # Обновляем переменные ESYBOT
-            for var_name in self.variables.keys():
-                if var_name in local_vars:
+            # Обновляем переменные ESYBOT (на случай прямого изменения)
+            updated_vars = []
+            for var_name in list(self.variables.keys()):
+                if var_name in local_vars and local_vars[var_name] != self.variables[var_name]:
                     self.variables[var_name] = local_vars[var_name]
+                    updated_vars.append(f"{var_name}={local_vars[var_name]}")
             
             # Добавляем новые переменные
-            excluded_vars = {'bot', 'random', 'datetime', 'json', 'os', 're', 'math', 'time', '__builtins__'}
+            excluded_vars = {
+                'bot', 'random', 'datetime', 'json', 'os', 're', 'math', 'time', '__builtins__',
+                'esybot_set', 'esybot_get', 'esybot_increment', 'esybot_decrement', 'esybot_send',
+                'set_var', 'get_var'
+            }
+            new_vars = []
             for key, value in local_vars.items():
-                if key not in context and key not in excluded_vars:
+                if key not in context and key not in excluded_vars and key not in self.variables:
                     self.variables[key] = value
+                    new_vars.append(f"{key}={value}")
             
+            self.debug_print(f"   ✅ Python блок выполнен успешно")
+            if updated_vars:
+                self.debug_print(f"      📊 Обновлены переменные: {', '.join(updated_vars)}")
+            if new_vars:
+                self.debug_print(f"      📊 Новые переменные: {', '.join(new_vars)}")
+            
+        except NameError as e:
+            print(f"❌ Переменная не найдена в Python коде: {e}")
+            print(f"   💡 Доступные ESYBOT функции:")
+            print(f"      • esybot_set('var_name', value) - установить переменную")
+            print(f"      • esybot_get('var_name') - получить переменную")
+            print(f"      • esybot_increment('var_name') - увеличить переменную")
+            print(f"      • esybot_decrement('var_name') - уменьшить переменную")
+            print(f"      • await esybot_send('text', keyboard='name') - отправить сообщение")
+            if self.debug:
+                print(f"   📝 Проблемный код:")
+                for i, line in enumerate(code.split('\n'), 1):
+                    print(f"   {i:2d}: {line}")
+        except SyntaxError as e:
+            print(f"❌ Синтаксическая ошибка в Python коде: {e}")
+            print(f"   📍 Строка {e.lineno}: {e.text}")
+            if self.debug:
+                print(f"   📝 Исходный код:")
+                for i, line in enumerate(code.split('\n'), 1):
+                    marker = " >>> " if i == e.lineno else "     "
+                    print(f"   {i:2d}{marker}{repr(line)}")
         except Exception as e:
             print(f"❌ Ошибка выполнения Python кода: {e}")
+            if self.debug:
+                print(f"   📝 Проблемный код:")
+                for i, line in enumerate(code.split('\n'), 1):
+                    print(f"   {i:2d}: {repr(line)}")
+                import traceback
+                traceback.print_exc()
+
+    def _normalize_python_code(self, code: str) -> str:
+        """Нормализация отступов Python кода для exec()"""
+        try:
+            lines = code.split('\n')
+            
+            # Убираем пустые строки в начале и конце
+            while lines and not lines[0].strip():
+                lines.pop(0)
+            while lines and not lines[-1].strip():
+                lines.pop()
+            
+            if not lines:
+                return ""
+            
+            # Находим минимальный отступ среди непустых строк
+            min_indent = float('inf')
+            for line in lines:
+                if line.strip():  # Только непустые строки
+                    indent = len(line) - len(line.lstrip())
+                    min_indent = min(min_indent, indent)
+            
+            # Если все строки без отступов, возвращаем как есть
+            if min_indent == 0 or min_indent == float('inf'):
+                normalized = '\n'.join(lines)
+                self.debug_print(f"   🔧 Python код уже нормализован")
+                return normalized
+            
+            # Убираем минимальный отступ у всех строк
+            normalized_lines = []
+            for line in lines:
+                if line.strip():  # Непустые строки
+                    normalized_lines.append(line[min_indent:])
+                else:  # Пустые строки
+                    normalized_lines.append("")
+            
+            result = '\n'.join(normalized_lines)
+            
+            self.debug_print(f"   🔧 Python код нормализован (убран отступ {min_indent} пробелов)")
+            
+            return result
+            
+        except Exception as e:
+            print(f"⚠️ Ошибка нормализации Python кода: {e}")
+            return code
     
     async def _execute_esybot_command(self, line: str, context: Dict[str, Any]) -> None:
         """Wiki-совместимое выполнение ESYBOT команд"""
@@ -532,7 +681,6 @@ class FixedWikiESYBOTInterpreter:
             
             update = context.get('update')
             if update and isinstance(update, CallbackQuery):
-                # ИСПРАВЛЕНО: Правильное редактирование сообщения через CallbackQuery
                 await update.message.edit_text(
                     text=text, 
                     parse_mode=parse_mode,
@@ -631,7 +779,7 @@ class FixedWikiESYBOTInterpreter:
         
         async def handler_func(update: Union[Message, CallbackQuery], state: FSMContext = None):
             try:
-                # ИСПРАВЛЕНО: Правильное определение контекста
+                # Правильное определение контекста
                 context = {
                     'update': update,
                     'user_id': 0,
@@ -644,7 +792,6 @@ class FixedWikiESYBOTInterpreter:
                 
                 # Определяем тип update и извлекаем данные
                 if isinstance(update, CallbackQuery):
-                    # Это callback от inline кнопки
                     context.update({
                         'user_id': update.from_user.id,
                         'first_name': update.from_user.first_name or '',
@@ -656,7 +803,6 @@ class FixedWikiESYBOTInterpreter:
                     print(f"🔥 CALLBACK: {handler_type} от пользователя {context['user_id']}, data: '{context['data']}'")
                     
                 elif isinstance(update, Message):
-                    # Это обычное сообщение
                     context.update({
                         'user_id': update.from_user.id if update.from_user else 0,
                         'first_name': update.from_user.first_name or '' if update.from_user else '',
@@ -675,7 +821,7 @@ class FixedWikiESYBOTInterpreter:
                 import traceback
                 traceback.print_exc()
         
-        # ИСПРАВЛЕНО: Правильная регистрация обработчиков
+        # Правильная регистрация обработчиков
         if handler_type == 'on_start':
             self.dp.message.register(handler_func, Command(commands=["start"]))
         elif handler_type == 'on_message':
@@ -712,7 +858,7 @@ class FixedWikiESYBOTInterpreter:
             self.dp.message.register(handler_func, F.location)
     
     async def run_interpreter(self) -> None:
-        """Запуск исправленного интерпретатора"""
+        """Запуск финального интерпретатора"""
         if not self.bot_token:
             print("❌ Не указан токен бота!")
             return
@@ -725,7 +871,8 @@ class FixedWikiESYBOTInterpreter:
         for handler_data in self.handlers:
             await self._create_handler(handler_data)
         
-        print("✅ ESYBOT интерпретатор с исправленными кнопками запущен!")
+        print("🎯 Esybot скрипт запущен!")
+        print("=" * 60)
         print(f"🔗 Обработчиков сообщений: {len(self.dp.message.handlers)}")
         print(f"🔗 Обработчиков callback: {len(self.dp.callback_query.handlers)}")
         print(f"⌨️ Клавиатур: {len(self.keyboards)}")
@@ -733,7 +880,7 @@ class FixedWikiESYBOTInterpreter:
         
         # Выводим информацию о callback обработчиках
         if self.dp.callback_query.handlers:
-            print("🔘 Зарегистрированные callback обработчики:")
+            print("\n🔘 Зарегистрированные callback обработчики:")
             for handler in self.handlers:
                 if handler['type'] == 'on_callback':
                     print(f"   • {handler['arg']} -> {len(handler['commands'])} команд")
@@ -741,13 +888,13 @@ class FixedWikiESYBOTInterpreter:
         try:
             await self.dp.start_polling(self.bot, skip_updates=True)
         except KeyboardInterrupt:
-            print("⏹️ Интерпретатор остановлен")
+            print("\n⏹️ Интерпретатор остановлен")
         finally:
             await self.bot.session.close()
 
 def main():
     """Главная функция"""
-    print("🔧 ESYBOT ИНТЕРПРЕТАТОР - ИСПРАВЛЕНЫ КНОПКИ")
+    print("🎯 Esybot Lang")
     print("=" * 70)
     
     debug_mode = '--debug' in sys.argv
@@ -755,11 +902,19 @@ def main():
         sys.argv.remove('--debug')
     
     if len(sys.argv) < 2:
-        print("📚 Использование: python fixed_esybot_interpreter.py <файл.esi> [--debug]")
-        print("🔧 --debug - подробная отладка для диагностики кнопок")
+        print("\n📚 Использование: python final_esybot_interpreter.py <файл.esi> [--debug]")
+        print("🔧 --debug - подробная отладка")
+        print("   Ченж-лог")
+        print("   🐍 Python блоки с функциями (esybot_set, esybot_get, esybot_send)")
+        print("   📊 Все переменные и их замена ($variable)")
+        print("   🎯 Все обработчики (on_start, on_message, on_callback, медиа)")
+        print("   📝 Все команды (send, reply, edit, answer_callback)")
+        print("   ⌨️ Клавиатуры с new_row, URL кнопками")
+        print("   🎨 Parse mode (Markdown, HTML)")
+        print("   ⚡ Интерпретация в реальном времени")
         return
     
-    interpreter = FixedWikiESYBOTInterpreter(debug_mode=debug_mode)
+    interpreter = FinalESYBOTInterpreter(debug_mode=debug_mode)
     
     try:
         if not interpreter.parse_file(sys.argv[1]):
@@ -767,6 +922,7 @@ def main():
         
         if not interpreter.bot_token or interpreter.bot_token == "YOUR_TOKEN_HERE":
             print("❌ УСТАНОВИТЕ РЕАЛЬНЫЙ ТОКЕН БОТА!")
+            print("   Получите токен у @BotFather и замените в файле .esi")
             return
         
         asyncio.run(interpreter.run_interpreter())
